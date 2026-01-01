@@ -24,24 +24,28 @@ interface TradeData {
 }
 
 function App() {
+  // FIX 1: This variable setup is correct
+  const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000';
+  
   const [user, setUser] = useState<UserData | null>(null);
-  const [trades, setTrades] = useState<TradeData[]>([]); // New: Holds the list of trades
+  const [trades, setTrades] = useState<TradeData[]>([]); 
   const [amount, setAmount] = useState('');
   const [buyerId, setBuyerId] = useState('2');
   const [isLoading, setIsLoading] = useState(false);
   const toast = useToast();
 
-  const MY_USER_ID = 1; // Assuming we are logged in as User 1
+  const MY_USER_ID = 1; 
 
   // --- 1. FETCH DATA (Balance + History) ---
   const fetchData = async () => {
     try {
-      // Get Wallet
-      const userRes = await axios.get(`http://127.0.0.1:3000/users/${MY_USER_ID}`);
+      // FIX 2: Added backticks ` ` around the URL
+      const userRes = await axios.get(`${API_URL}/users/${MY_USER_ID}`);
       setUser(userRes.data);
 
-      // Get History (In a real app, we would filter this by user ID on the backend)
-      const tradeRes = await axios.get('http://127.0.0.1:3000/trades');
+      // FIX 3: Added backticks AND fixed the endpoint to fetch 'trades', not users again
+      const tradeRes = await axios.get(`${API_URL}/trades`);
+      
       // Sort by newest first
       const myTrades = tradeRes.data.sort((a: any, b: any) => b.id - a.id);
       setTrades(myTrades);
@@ -58,7 +62,8 @@ function App() {
     if(!amount || isNaN(Number(amount))) return;
     setIsLoading(true);
     try {
-      await axios.post('http://127.0.0.1:3000/trades', {
+      // FIX 4: Fixed the broken structure and added backticks
+      await axios.post(`${API_URL}/trades`, {
         sellerId: MY_USER_ID,
         buyerId: Number(buyerId),
         amount: Number(amount)
@@ -66,7 +71,7 @@ function App() {
 
       toast({ title: 'FUNDS LOCKED', status: 'success', duration: 2000, position: 'top-right' });
       setAmount('');
-      fetchData(); // Refresh list instantly
+      fetchData(); 
 
     } catch (error: any) {
       toast({ title: 'FAILED', description: error.response?.data?.message, status: 'error', position: 'top-right' });
@@ -77,10 +82,11 @@ function App() {
   // --- 3. RELEASE FUNDS (Complete Deal) ---
   const handleRelease = async (tradeId: number) => {
     try {
-      await axios.post(`http://127.0.0.1:3000/trades/${tradeId}/release`);
+      // FIX 5: Added backticks ` `
+      await axios.post(`${API_URL}/trades/${tradeId}/release`);
       
       toast({ title: 'ASSETS RELEASED', description: `Trade #${tradeId} completed.`, status: 'success', position: 'top-right' });
-      fetchData(); // Refresh status instantly
+      fetchData(); 
 
     } catch (error: any) {
       toast({ title: 'ERROR', description: error.response?.data?.message, status: 'error', position: 'top-right' });
@@ -89,7 +95,7 @@ function App() {
 
   return (
     <Box minH="100vh" bg="gray.900" color="white" py={10}>
-      <Container maxW="container.xl"> {/* Wider container for the table */}
+      <Container maxW="container.xl"> 
         <VStack spacing={8} align="stretch">
           
           {/* HEADER */}
@@ -140,7 +146,7 @@ function App() {
             </Box>
           </SimpleGrid>
 
-          {/* 3. TRANSACTION HISTORY (THE LEDGER) */}
+          {/* 3. TRANSACTION HISTORY */}
           <Box p={6} bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700">
             <Heading size="md" mb={4} color="gray.300">Recent Transactions</Heading>
             
