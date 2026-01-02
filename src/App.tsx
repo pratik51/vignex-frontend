@@ -3,12 +3,11 @@ import {
   Box, Container, Heading, Text, VStack, Badge, Flex, 
   Button, Input, FormControl, FormLabel, useToast,
   Table, Thead, Tbody, Tr, Th, Td, TableContainer, 
-  Tabs, TabList, TabPanels, Tab, TabPanel, Avatar, Divider,
+  Tabs, TabList, TabPanels, Tab, TabPanel, Avatar, 
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, useDisclosure,
   Select, HStack
 } from '@chakra-ui/react';
 import axios from 'axios';
-
 // --- CONFIG ---
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000';
 
