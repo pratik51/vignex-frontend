@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { 
   Box, Container, Heading, Text, VStack, Badge, Flex, SimpleGrid, 
   Stat, StatLabel, StatNumber, StatHelpText, Button, Input, FormControl, FormLabel, useToast,
-  Table, Thead, Tbody, Tr, Th, Td, TableContainer, Spinner, Tabs, TabList, TabPanels, Tab, TabPanel
+  Table, Thead, Tbody, Tr, Th, Td, TableContainer, Tabs, TabList, TabPanels, Tab, TabPanel
 } from '@chakra-ui/react';
 import axios from 'axios';
 

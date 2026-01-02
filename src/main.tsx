@@ -1,11 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { ChakraProvider } from '@chakra-ui/react'
-import App from './App' // Matches export in App.tsx
+import { ChakraProvider } from '@chakra-ui/react' // <--- Must be here
+import App from './App'
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    {/* This Provider passes the "Dark Theme" tools to App */}
     <ChakraProvider>
       <App />
     </ChakraProvider>
