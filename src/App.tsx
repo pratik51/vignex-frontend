@@ -2,162 +2,218 @@ import { useEffect, useState } from 'react';
 import { 
   Box, Container, Heading, Text, VStack, Badge, Flex, SimpleGrid, 
   Stat, StatLabel, StatNumber, StatHelpText, Button, Input, FormControl, FormLabel, useToast,
-  Table, Thead, Tbody, Tr, Th, Td, TableContainer, Spinner
+  Table, Thead, Tbody, Tr, Th, Td, TableContainer, Spinner, Tabs, TabList, TabPanels, Tab, TabPanel
 } from '@chakra-ui/react';
 import axios from 'axios';
 
-// --- TYPES ---
-interface UserData {
-  id: number;
-  email: string;
-  usdtBalance: string;
-  isKycVerified: boolean;
-}
-
-interface TradeData {
-  id: number;
-  amount: number;
-  status: 'PENDING' | 'COMPLETED';
-  seller: { id: number };
-  buyer: { id: number };
-  createdAt: string;
-}
+// --- CONFIG ---
+// Automatically detect if we are on Laptop or Cloud
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000';
 
 function App() {
-  // FIX 1: This variable setup is correct
-  const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000';
+  // --- STATE ---
+  const [user, setUser] = useState<any | null>(null); // If null, show Login Screen
   
-  const [user, setUser] = useState<UserData | null>(null);
-  const [trades, setTrades] = useState<TradeData[]>([]); 
-  const [amount, setAmount] = useState('');
-  const [buyerId, setBuyerId] = useState('2');
+  // Login/Signup Form State
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Dashboard State
+  const [trades, setTrades] = useState<any[]>([]);
+  const [amount, setAmount] = useState('');
+  const [buyerId, setBuyerId] = useState('');
   const toast = useToast();
 
-  const MY_USER_ID = 1; 
+  // --- ACTIONS ---
 
-  // --- 1. FETCH DATA (Balance + History) ---
-  const fetchData = async () => {
-    try {
-      // FIX 2: Added backticks ` ` around the URL
-      const userRes = await axios.get(`${API_URL}/users/${MY_USER_ID}`);
-      setUser(userRes.data);
-
-      // FIX 3: Added backticks AND fixed the endpoint to fetch 'trades', not users again
-      const tradeRes = await axios.get(`${API_URL}/trades`);
-      
-      // Sort by newest first
-      const myTrades = tradeRes.data.sort((a: any, b: any) => b.id - a.id);
-      setTrades(myTrades);
-
-    } catch (error) {
-      console.error("Connection Error:", error);
-    }
-  };
-
-  useEffect(() => { fetchData(); }, []);
-
-  // --- 2. CREATE TRADE (Lock Funds) ---
-  const handleTrade = async () => {
-    if(!amount || isNaN(Number(amount))) return;
+  const handleLogin = async () => {
     setIsLoading(true);
     try {
-      // FIX 4: Fixed the broken structure and added backticks
-      await axios.post(`${API_URL}/trades`, {
-        sellerId: MY_USER_ID,
-        buyerId: Number(buyerId),
-        amount: Number(amount)
-      });
-
-      toast({ title: 'FUNDS LOCKED', status: 'success', duration: 2000, position: 'top-right' });
-      setAmount('');
-      fetchData(); 
-
-    } catch (error: any) {
-      toast({ title: 'FAILED', description: error.response?.data?.message, status: 'error', position: 'top-right' });
+      // Connects to your new backend login function
+      const res = await axios.post(`${API_URL}/users/login`, { email, password });
+      setUser(res.data); // Login Success!
+      toast({ title: 'Welcome back!', status: 'success' });
+    } catch (err) {
+      toast({ title: 'Login Failed', description: 'Wrong email or password', status: 'error' });
     }
     setIsLoading(false);
   };
 
-  // --- 3. RELEASE FUNDS (Complete Deal) ---
+  const handleSignup = async () => {
+    setIsLoading(true);
+    try {
+      // Creates a new user in your database
+      const res = await axios.post(`${API_URL}/users`, { 
+        email, 
+        password
+      });
+      setUser(res.data); // Auto-login after signup
+      toast({ title: 'Account Created', description: 'Welcome to Vignex', status: 'success' });
+    } catch (err) {
+      toast({ title: 'Signup Failed', description: 'Email might be taken', status: 'error' });
+    }
+    setIsLoading(false);
+  };
+
+  const handleTrade = async () => {
+    if(!amount || isNaN(Number(amount))) return;
+    setIsLoading(true);
+    try {
+      await axios.post(`${API_URL}/trades`, {
+        sellerId: user.id, // Uses the logged-in user's ID
+        buyerId: Number(buyerId),
+        amount: Number(amount)
+      });
+      toast({ title: 'FUNDS LOCKED', status: 'success' });
+      setAmount('');
+      fetchData(); 
+    } catch (error: any) {
+      toast({ title: 'FAILED', description: error.response?.data?.message, status: 'error' });
+    }
+    setIsLoading(false);
+  };
+
   const handleRelease = async (tradeId: number) => {
     try {
-      // FIX 5: Added backticks ` `
       await axios.post(`${API_URL}/trades/${tradeId}/release`);
-      
-      toast({ title: 'ASSETS RELEASED', description: `Trade #${tradeId} completed.`, status: 'success', position: 'top-right' });
+      toast({ title: 'RELEASED', status: 'success' });
       fetchData(); 
-
     } catch (error: any) {
-      toast({ title: 'ERROR', description: error.response?.data?.message, status: 'error', position: 'top-right' });
+      toast({ title: 'ERROR', description: error.response?.data?.message, status: 'error' });
     }
   };
 
+  const fetchData = async () => {
+    if (!user) return;
+    try {
+      // 1. Refresh User Balance
+      const userRes = await axios.get(`${API_URL}/users/${user.id}`);
+      setUser(userRes.data);
+
+      // 2. Fetch Trades
+      const tradeRes = await axios.get(`${API_URL}/trades`);
+      setTrades(tradeRes.data.sort((a: any, b: any) => b.id - a.id));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // Poll for updates every 5 seconds (Real-time feel)
+  useEffect(() => {
+    if (user) {
+      fetchData();
+      const interval = setInterval(fetchData, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  // --- SCREEN 1: AUTH (LOGIN / SIGNUP) ---
+  if (!user) {
+    return (
+      <Box minH="100vh" bg="gray.900" color="white" display="flex" alignItems="center" justifyContent="center">
+        <Box bg="gray.800" p={8} borderRadius="xl" shadow="2xl" w="full" maxW="md" border="1px solid" borderColor="gray.700">
+          <Heading textAlign="center" mb={6} color="blue.400">VIGNEX</Heading>
+          <Tabs isFitted variant="enclosed">
+            <TabList mb="1em">
+              <Tab _selected={{ color: 'white', bg: 'blue.500' }}>Login</Tab>
+              <Tab _selected={{ color: 'white', bg: 'green.500' }}>Sign Up</Tab>
+            </TabList>
+            <TabPanels>
+              {/* LOGIN FORM */}
+              <TabPanel>
+                <VStack spacing={4}>
+                  <FormControl>
+                    <FormLabel>Email</FormLabel>
+                    <Input value={email} onChange={e => setEmail(e.target.value)} bg="gray.900" placeholder="user@example.com" />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Password</FormLabel>
+                    <Input type="password" value={password} onChange={e => setPassword(e.target.value)} bg="gray.900" placeholder="********" />
+                  </FormControl>
+                  <Button w="full" colorScheme="blue" onClick={handleLogin} isLoading={isLoading}>
+                    Log In
+                  </Button>
+                </VStack>
+              </TabPanel>
+
+              {/* SIGNUP FORM */}
+              <TabPanel>
+                <VStack spacing={4}>
+                  <FormControl>
+                    <FormLabel>Email</FormLabel>
+                    <Input value={email} onChange={e => setEmail(e.target.value)} bg="gray.900" placeholder="New email" />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Set Password</FormLabel>
+                    <Input type="password" value={password} onChange={e => setPassword(e.target.value)} bg="gray.900" placeholder="Strong password" />
+                  </FormControl>
+                  <Button w="full" colorScheme="green" onClick={handleSignup} isLoading={isLoading}>
+                    Create Account
+                  </Button>
+                </VStack>
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
+        </Box>
+      </Box>
+    );
+  }
+
+  // --- SCREEN 2: DASHBOARD (Real App) ---
   return (
     <Box minH="100vh" bg="gray.900" color="white" py={10}>
-      <Container maxW="container.xl"> 
-        <VStack spacing={8} align="stretch">
-          
-          {/* HEADER */}
-          <Flex justify="space-between" align="center" borderBottom="1px" borderColor="gray.700" pb={4}>
-            <Box>
-              <Heading color="white" size="lg" letterSpacing="tight">VIGNEX</Heading>
-              <Text fontSize="sm" color="gray.400" fontFamily="monospace">
-                INSTITUTIONAL DASHBOARD
-              </Text>
-            </Box>
-            <Flex align="center" gap={3}>
-               <Text fontSize="sm" color="gray.400">{user?.email}</Text>
-               <Badge colorScheme="green" variant="solid" borderRadius="full" px={3}>VERIFIED</Badge>
-            </Flex>
-          </Flex>
+      <Container maxW="container.xl">
+        <Flex justify="space-between" align="center" mb={8}>
+           <Heading size="lg">VIGNEX <Badge ml={2} colorScheme="purple">PRO</Badge></Heading>
+           <Flex align="center" gap={4}>
+             <Text color="gray.400">{user.email}</Text>
+             <Button size="sm" colorScheme="red" variant="outline" onClick={() => setUser(null)}>Logout</Button>
+           </Flex>
+        </Flex>
 
-          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-            
-            {/* 1. WALLET CARD */}
-            <Box p={6} bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700" shadow="xl">
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6} mb={8}>
+            {/* WALLET */}
+            <Box p={6} bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700">
               <Stat>
-                <StatLabel color="gray.400" mb={1}>AVAILABLE ASSETS (USDT)</StatLabel>
-                <StatNumber fontSize="5xl" fontWeight="bold" color="green.300">
-                  {user ? `$ ${Number(user.usdtBalance).toLocaleString()}` : <Spinner />}
+                <StatLabel color="gray.400">YOUR BALANCE</StatLabel>
+                <StatNumber fontSize="4xl" color="green.300">
+                  {/* Handle missing balance gracefully */}
+                  $ {user.usdtBalance ? Number(user.usdtBalance).toLocaleString() : '0.00'}
                 </StatNumber>
-                <StatHelpText color="gray.500">
-                  Custody Status: Secured 
-                </StatHelpText>
+                <StatHelpText>USDT (Tether)</StatHelpText>
               </Stat>
             </Box>
 
-            {/* 2. TRADING TERMINAL */}
-            <Box p={6} bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700" shadow="xl">
-              <Text fontSize="lg" fontWeight="bold" mb={4} color="gray.200">Create New Sell Order</Text>
+            {/* TRADING FORM */}
+            <Box p={6} bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700">
+              <Text fontSize="lg" fontWeight="bold" mb={4} color="gray.200">New Trade</Text>
               <Flex gap={3}>
                 <FormControl>
                   <FormLabel fontSize="xs" color="gray.500">BUYER ID</FormLabel>
-                  <Input bg="gray.900" border="none" value={buyerId} onChange={(e) => setBuyerId(e.target.value)}/>
+                  <Input bg="gray.900" value={buyerId} onChange={(e) => setBuyerId(e.target.value)} placeholder="e.g. 2"/>
                 </FormControl>
                 <FormControl>
-                  <FormLabel fontSize="xs" color="gray.500">AMOUNT (USDT)</FormLabel>
-                  <Input bg="gray.900" border="none" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)}/>
+                  <FormLabel fontSize="xs" color="gray.500">AMOUNT</FormLabel>
+                  <Input bg="gray.900" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"/>
                 </FormControl>
               </Flex>
               <Button w="full" colorScheme="blue" mt={5} onClick={handleTrade} isLoading={isLoading}>
-                LOCK FUNDS IN ESCROW
+                LOCK FUNDS
               </Button>
             </Box>
-          </SimpleGrid>
-
-          {/* 3. TRANSACTION HISTORY */}
-          <Box p={6} bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700">
+        </SimpleGrid>
+        
+        {/* HISTORY */}
+        <Box p={6} bg="gray.800" borderRadius="xl" border="1px solid" borderColor="gray.700">
             <Heading size="md" mb={4} color="gray.300">Recent Transactions</Heading>
-            
             <TableContainer>
               <Table variant="simple" size="md">
                 <Thead>
                   <Tr>
                     <Th color="gray.500">ID</Th>
-                    <Th color="gray.500">Role</Th>
+                    <Th color="gray.500">Type</Th>
                     <Th color="gray.500" isNumeric>Amount</Th>
-                    <Th color="gray.500">Counterparty</Th>
                     <Th color="gray.500">Status</Th>
                     <Th color="gray.500">Action</Th>
                   </Tr>
@@ -167,29 +223,13 @@ function App() {
                     <Tr key={trade.id} _hover={{ bg: 'gray.700' }}>
                       <Td color="gray.400">#{trade.id}</Td>
                       <Td>
-                        {trade.seller.id === MY_USER_ID ? 
-                          <Badge colorScheme="red">SELLING</Badge> : 
-                          <Badge colorScheme="green">BUYING</Badge>
-                        }
+                        {trade.seller.id === user.id ? <Badge colorScheme="red">SELLING</Badge> : <Badge colorScheme="green">BUYING</Badge>}
                       </Td>
                       <Td isNumeric fontWeight="bold" color="white">{trade.amount} USDT</Td>
-                      <Td color="gray.400">
-                         {trade.seller.id === MY_USER_ID ? `Buyer #${trade.buyer.id}` : `Seller #${trade.seller.id}`}
-                      </Td>
+                      <Td><Badge colorScheme={trade.status === 'COMPLETED' ? 'green' : 'yellow'}>{trade.status}</Badge></Td>
                       <Td>
-                        <Badge colorScheme={trade.status === 'COMPLETED' ? 'green' : 'yellow'}>
-                          {trade.status}
-                        </Badge>
-                      </Td>
-                      <Td>
-                        {/* ONLY SHOW RELEASE BUTTON IF: You are the Seller AND it is Pending */}
-                        {trade.seller.id === MY_USER_ID && trade.status === 'PENDING' && (
-                          <Button 
-                            size="sm" colorScheme="green" variant="outline"
-                            onClick={() => handleRelease(trade.id)}
-                          >
-                            RELEASE
-                          </Button>
+                        {trade.seller.id === user.id && trade.status === 'PENDING' && (
+                          <Button size="sm" colorScheme="green" variant="outline" onClick={() => handleRelease(trade.id)}>RELEASE</Button>
                         )}
                       </Td>
                     </Tr>
@@ -198,8 +238,6 @@ function App() {
               </Table>
             </TableContainer>
           </Box>
-
-        </VStack>
       </Container>
     </Box>
   );
