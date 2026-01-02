@@ -8,6 +8,7 @@ import {
   Select, HStack
 } from '@chakra-ui/react';
 import axios from 'axios';
+
 // --- CONFIG ---
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000';
 
