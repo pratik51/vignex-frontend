@@ -1,3 +1,5 @@
+import Chat from './Chat'; // <--- Import this
+// ... other imports
 import { useEffect, useState } from 'react';
 import { 
   Box, Container, Heading, Text, VStack, Badge, Flex, 
@@ -8,6 +10,7 @@ import {
   Select, HStack
 } from '@chakra-ui/react';
 import axios from 'axios';
+
 
 // --- CONFIG ---
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -29,6 +32,11 @@ function App() {
   
   const [ads, setAds] = useState<any[]>([]);
   const [myTrades, setMyTrades] = useState<any[]>([]);
+
+
+    // Chat 
+  const [chatTradeId, setChatTradeId] = useState<number | null>(null);
+  const { isOpen: isChatOpen, onOpen: onChatOpen, onClose: onChatClose } = useDisclosure();
   
   // Post Ad Form
   const [adPrice, setAdPrice] = useState('');
@@ -224,6 +232,10 @@ function App() {
                           {trade.status !== 'COMPLETED' && (
                              <Button ml={2} size="xs" colorScheme="red" variant="outline" onClick={() => handleAction(trade.id, 'cancel')}>Cancel</Button>
                           )}
+                          {/* CHAT BUTTON - Always visible for active trades */}
+                              <Button size="xs" colorScheme="blue" ml={2} onClick={() => {setChatTradeId(trade.id); onChatOpen();
+
+                          }}>Chat</Button>
                         </Td>
                       </Tr>
                     )
@@ -365,8 +377,23 @@ function App() {
           </ModalBody>
         </ModalContent>
       </Modal>
+      
+{/* --- PASTE IT HERE (OUTSIDE of the tables) --- */}
+      {/* MODAL 3: CHAT WINDOW */}
+      <Modal isOpen={isChatOpen} onClose={onChatClose} isCentered>
+        <ModalOverlay />
+        <ModalContent bg="#2B3139" color="white">
+          <ModalHeader>Trade Chat #{chatTradeId}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            {chatTradeId && user && (
+              <Chat tradeId={chatTradeId} userId={user.id} />
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
 
-    </Box>
+    </Box> // <--- This is the final closing tag of the main return
   );
 }
 
