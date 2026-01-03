@@ -10,7 +10,16 @@ import {
 import axios from 'axios';
 
 // --- CONFIG ---
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+// --- HELPER: Format Seconds to "5m 30s" ---
+const formatTime = (seconds: number) => {
+  if (!seconds) return '0s';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+};
 
 function App() {
   // --- STATE ---
@@ -241,12 +250,25 @@ function App() {
               <Tbody>
                 {ads.map((ad) => (
                   <Tr key={ad.id} _hover={{ bg: '#2B3139' }}>
+                    {/* UPDATED ADVERTISER CELL WITH STATS */}
                     <Td>
-                      <Flex align="center" gap={2}>
+                      <Flex align="center" gap={3}>
                         <Avatar size="sm" bg="gray.600" />
                         <Box>
-                          <Text color="#FCD535" fontWeight="bold">User #{ad.seller.id}</Text>
-                          <Badge fontSize="10px" colorScheme={ad.seller.tier === 'Gold' ? 'yellow' : 'gray'}>{ad.seller.tier || 'Bronze'}</Badge>
+                          <Flex align="center" gap={2}>
+                            <Text color="#FCD535" fontWeight="bold">User #{ad.seller.id}</Text>
+                            <Badge fontSize="10px" colorScheme={ad.seller.tier === 'Gold' ? 'yellow' : 'gray'}>
+                              {ad.seller.tier || 'Bronze'}
+                            </Badge>
+                          </Flex>
+                          <Flex align="center" gap={3} mt={1}>
+                             <Text fontSize="xs" color="gray.400">
+                               {Number(ad.seller.completionRate || 0).toFixed(0)}% completion
+                             </Text>
+                             <Text fontSize="xs" color="gray.400">
+                               ⚡ {formatTime(ad.seller.avgReleaseTimeSeconds)} avg
+                             </Text>
+                          </Flex>
                         </Box>
                       </Flex>
                     </Td>
