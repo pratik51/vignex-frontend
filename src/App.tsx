@@ -1,5 +1,5 @@
-import Chat from './Chat'; // <--- Import this
-// ... other imports
+import Chat from './Chat'; 
+import PostAdWizard from './PostAdWizard'; // <--- 1. Import Wizard
 import { useEffect, useState } from 'react';
 import { 
   Box, Container, Heading, Text, VStack, Badge, Flex, 
@@ -11,11 +11,10 @@ import {
 } from '@chakra-ui/react';
 import axios from 'axios';
 
-
 // --- CONFIG ---
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-// --- HELPER: Format Seconds to "5m 30s" ---
+// --- HELPER: Format Seconds ---
 const formatTime = (seconds: number) => {
   if (!seconds) return '0s';
   const m = Math.floor(seconds / 60);
@@ -33,21 +32,13 @@ function App() {
   const [ads, setAds] = useState<any[]>([]);
   const [myTrades, setMyTrades] = useState<any[]>([]);
 
-
-    // Chat 
+  // Chat 
   const [chatTradeId, setChatTradeId] = useState<number | null>(null);
   const { isOpen: isChatOpen, onOpen: onChatOpen, onClose: onChatClose } = useDisclosure();
   
-  // Post Ad Form
-  const [adPrice, setAdPrice] = useState('');
-  const [adAmount, setAdAmount] = useState('');
-  const [adMin, setAdMin] = useState('');
-  const [adMax, setAdMax] = useState('');
-  const [adPayment, setAdPayment] = useState('UPI');
-  
   // Buy Form
   const [selectedAd, setSelectedAd] = useState<any | null>(null);
-  const [buyAmount, setBuyAmount] = useState(''); // In USDT
+  const [buyAmount, setBuyAmount] = useState(''); 
 
   const { isOpen: isAdOpen, onOpen: onAdOpen, onClose: onAdClose } = useDisclosure();
   const { isOpen: isBuyOpen, onOpen: onBuyOpen, onClose: onBuyClose } = useDisclosure();
@@ -70,17 +61,13 @@ function App() {
     } catch (err) { toast({ title: 'Signup Failed', status: 'error' }); }
   };
 
-  // 1. POST A NEW AD
-  const handlePostAd = async () => {
+  // 1. POST A NEW AD (Now uses Wizard Data)
+  const handlePostAd = async (adData: any) => {
     setIsLoading(true);
     try {
       await axios.post(`${API_URL}/ads`, {
         sellerId: user.id,
-        price: Number(adPrice),
-        amount: Number(adAmount),
-        minLimit: Number(adMin),
-        maxLimit: Number(adMax),
-        paymentMethod: adPayment
+        ...adData // Spread data from Wizard (type, price, margin, timeLimit, etc.)
       });
       toast({ title: 'Ad Posted', status: 'success' });
       onAdClose();
@@ -110,7 +97,7 @@ function App() {
     setIsLoading(false);
   };
 
-  // 3. TRADE ACTIONS (Pay / Release / Cancel)
+  // 3. TRADE ACTIONS
   const handleAction = async (tradeId: number, action: string) => {
     try {
       if(action === 'pay') await axios.patch(`${API_URL}/trades/${tradeId}/confirm-payment`, { buyerId: user.id });
@@ -127,28 +114,24 @@ function App() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      // Refresh User Balance
       const u = await axios.get(`${API_URL}/users/${user.id}`);
       setUser(u.data);
 
-      // Get Order Book (Ads)
       const adsRes = await axios.get(`${API_URL}/ads`);
       setAds(adsRes.data);
 
-      // Get My Active Trades (Where I am buyer OR seller)
       const tradesRes = await axios.get(`${API_URL}/trades`);
       const my = tradesRes.data.filter((t: any) => 
         (t.buyer?.id === user.id || t.seller?.id === user.id) && t.status !== 'CANCELLED'
       );
       setMyTrades(my);
-
     } catch (error) { console.error(error); }
   };
 
   useEffect(() => {
     if (user) {
       fetchData();
-      const interval = setInterval(fetchData, 3000); // Live Updates
+      const interval = setInterval(fetchData, 3000); 
       return () => clearInterval(interval);
     }
   }, [user]);
@@ -186,7 +169,6 @@ function App() {
   // --- MAIN DASHBOARD ---
   return (
     <Box minH="100vh" bg="#181A20" color="white" fontFamily="Arial, sans-serif">
-      {/* HEADER */}
       <Flex h="64px" px={6} align="center" justify="space-between" bg="#1E2329" borderBottom="1px solid #2B3139">
         <Heading size="md" color="#FCD535">VIGNEX <Text as="span" color="white" fontSize="xs">P2P</Text></Heading>
         <Flex align="center" gap={4}>
@@ -197,13 +179,12 @@ function App() {
 
       <Container maxW="container.xl" py={8}>
         
-        {/* TOP ACTION BAR */}
         <Flex justify="space-between" align="center" mb={6}>
            <Heading size="lg">P2P Markets</Heading>
            <Button bg="#FCD535" color="black" onClick={onAdOpen}>+ Post New Ad</Button>
         </Flex>
 
-        {/* ACTIVE ORDERS SECTION (IF ANY) */}
+        {/* ACTIVE ORDERS */}
         {myTrades.length > 0 && (
           <Box mb={8} p={4} bg="#2B3139" borderRadius="lg" border="1px solid #FCD535">
             <Heading size="md" mb={4} color="#FCD535">My Active Orders</Heading>
@@ -220,22 +201,16 @@ function App() {
                         <Td>{trade.amount} USDT</Td>
                         <Td><Badge colorScheme={trade.status === 'COMPLETED' ? 'green' : 'orange'}>{trade.status}</Badge></Td>
                         <Td>
-                          {/* BUYER ACTIONS */}
                           {isBuyer && trade.status === 'PENDING_PAYMENT' && (
                              <Button size="xs" colorScheme="yellow" onClick={() => handleAction(trade.id, 'pay')}>I Have Paid</Button>
                           )}
-                          {/* SELLER ACTIONS */}
                           {isSeller && trade.status === 'PAID' && (
                              <Button size="xs" colorScheme="green" onClick={() => handleAction(trade.id, 'release')}>Release Crypto</Button>
                           )}
-                          {/* CANCEL */}
                           {trade.status !== 'COMPLETED' && (
                              <Button ml={2} size="xs" colorScheme="red" variant="outline" onClick={() => handleAction(trade.id, 'cancel')}>Cancel</Button>
                           )}
-                          {/* CHAT BUTTON - Always visible for active trades */}
-                              <Button size="xs" colorScheme="blue" ml={2} onClick={() => {setChatTradeId(trade.id); onChatOpen();
-
-                          }}>Chat</Button>
+                          <Button size="xs" colorScheme="blue" ml={2} onClick={() => {setChatTradeId(trade.id); onChatOpen(); }}>Chat</Button>
                         </Td>
                       </Tr>
                     )
@@ -246,7 +221,7 @@ function App() {
           </Box>
         )}
 
-        {/* MARKETPLACE TABLE (ADS) */}
+        {/* MARKETPLACE TABLE */}
         <Box bg="#1E2329" borderRadius="xl" overflow="hidden">
           <TableContainer>
             <Table variant="simple">
@@ -262,7 +237,6 @@ function App() {
               <Tbody>
                 {ads.map((ad) => (
                   <Tr key={ad.id} _hover={{ bg: '#2B3139' }}>
-                    {/* UPDATED ADVERTISER CELL WITH STATS */}
                     <Td>
                       <Flex align="center" gap={3}>
                         <Avatar size="sm" bg="gray.600" />
@@ -284,18 +258,14 @@ function App() {
                         </Box>
                       </Flex>
                     </Td>
-                    <Td>
-                      <Text fontSize="xl" fontWeight="bold">₹ {ad.price}</Text>
-                    </Td>
+                    <Td><Text fontSize="xl" fontWeight="bold">₹ {ad.price}</Text></Td>
                     <Td>
                       <VStack align="start" spacing={0}>
                         <Text fontSize="sm" color="gray.400">Avail: <Text as="span" color="white">{ad.currentAmount} USDT</Text></Text>
                         <Text fontSize="xs" color="gray.500">Limit: ₹{ad.minLimit} - ₹{ad.maxLimit}</Text>
                       </VStack>
                     </Td>
-                    <Td>
-                       <Badge bg="#E6FFFA" color="#319795">{ad.paymentMethod}</Badge>
-                    </Td>
+                    <Td><Badge bg="#E6FFFA" color="#319795">{ad.paymentMethod}</Badge></Td>
                     <Td>
                       {ad.seller.id !== user.id && (
                         <Button size="sm" bg="#0ECB81" color="white" _hover={{ bg: '#06A669' }} 
@@ -313,44 +283,14 @@ function App() {
         </Box>
       </Container>
 
-      {/* MODAL 1: POST AD */}
+      {/* MODAL 1: POST AD - NOW USES WIZARD */}
       <Modal isOpen={isAdOpen} onClose={onAdClose}>
         <ModalOverlay />
         <ModalContent bg="#2B3139" color="white">
           <ModalHeader>Post New Ad</ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
-            <VStack spacing={4}>
-              <FormControl>
-                <FormLabel>Price (INR)</FormLabel>
-                <Input bg="#181A20" border="none" value={adPrice} onChange={e => setAdPrice(e.target.value)} />
-              </FormControl>
-              <FormControl>
-                <FormLabel>Total Amount (USDT)</FormLabel>
-                <Input bg="#181A20" border="none" value={adAmount} onChange={e => setAdAmount(e.target.value)} />
-              </FormControl>
-              <HStack w="full">
-                <FormControl>
-                  <FormLabel>Min Limit (₹)</FormLabel>
-                  <Input bg="#181A20" border="none" value={adMin} onChange={e => setAdMin(e.target.value)} />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Max Limit (₹)</FormLabel>
-                  <Input bg="#181A20" border="none" value={adMax} onChange={e => setAdMax(e.target.value)} />
-                </FormControl>
-              </HStack>
-              <FormControl>
-                <FormLabel>Payment Method</FormLabel>
-                <Select bg="#181A20" border="none" value={adPayment} onChange={e => setAdPayment(e.target.value)}>
-                   <option value="UPI" style={{color:'black'}}>UPI</option>
-                   <option value="IMPS" style={{color:'black'}}>IMPS</option>
-                   <option value="NEFT" style={{color:'black'}}>NEFT</option>
-                   <option value="RTGS" style={{color:'black'}}>RTGS</option>
-                   <option value="Digital Rupee" style={{color:'black'}}>Digital Rupee</option>
-                </Select>
-              </FormControl>
-              <Button w="full" bg="#FCD535" color="black" onClick={handlePostAd} isLoading={isLoading}>Post Ad</Button>
-            </VStack>
+            <PostAdWizard onPost={handlePostAd} isLoading={isLoading} />
           </ModalBody>
         </ModalContent>
       </Modal>
@@ -377,9 +317,8 @@ function App() {
           </ModalBody>
         </ModalContent>
       </Modal>
-      
-{/* --- PASTE IT HERE (OUTSIDE of the tables) --- */}
-      {/* MODAL 3: CHAT WINDOW */}
+
+      {/* MODAL 3: CHAT */}
       <Modal isOpen={isChatOpen} onClose={onChatClose} isCentered>
         <ModalOverlay />
         <ModalContent bg="#2B3139" color="white">
@@ -393,7 +332,7 @@ function App() {
         </ModalContent>
       </Modal>
 
-    </Box> // <--- This is the final closing tag of the main return
+    </Box>
   );
 }
 
