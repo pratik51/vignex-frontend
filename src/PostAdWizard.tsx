@@ -1,192 +1,201 @@
 import { useState } from 'react';
 import { 
-  Box, VStack, HStack, Button, Input, FormControl, FormLabel, 
-  Select, Text, Radio, RadioGroup, Stack, Textarea, Checkbox 
+  Box, Button, FormControl, FormLabel, Input, Select, VStack, Text, 
+  NumberInput, NumberInputField, Textarea, HStack, Badge, Divider, useToast 
 } from '@chakra-ui/react';
 
-interface PostAdWizardProps {
-  onPost: (data: any) => void;
-  isLoading: boolean;
-}
-
-export default function PostAdWizard({ onPost, isLoading }: PostAdWizardProps) {
+export default function PostAdWizard({ onPost, isLoading }: { onPost: (data: any) => void, isLoading: boolean }) {
   const [step, setStep] = useState(1);
+  const toast = useToast();
 
-  // --- FORM STATE ---
-  const [adType, setAdType] = useState('SELL');
-  const [priceType, setPriceType] = useState('FIXED');
-  const [price, setPrice] = useState('90.00');
-  const [margin, setMargin] = useState('100'); // %
-  
+  // --- STEP 1: TYPE & PRICE ---
+  const [type, setType] = useState('SELL'); // BUY or SELL
+  const [asset] = useState('USDT');
+  const [fiat] = useState('INR');
+  const [priceType, setPriceType] = useState('FIXED'); // FIXED or FLOATING
+  const [fixedPrice, setFixedPrice] = useState('');
+  const [floatingMargin, setFloatingMargin] = useState('100'); // % market price (100% = market)
+
+  // --- STEP 2: AMOUNT & LIMITS ---
   const [amount, setAmount] = useState('');
   const [minLimit, setMinLimit] = useState('');
   const [maxLimit, setMaxLimit] = useState('');
-  const [paymentMethods, setPaymentMethods] = useState<string[]>(['UPI']);
-  const [timeLimit, setTimeLimit] = useState('15');
+  const [paymentMethod, setPaymentMethod] = useState('UPI'); // Default to UPI
+  const [paymentTimeLimit, setPaymentTimeLimit] = useState('15');
+  const [verifTime, setVerifTime] = useState('10'); // New: Verification Time
 
+  // --- STEP 3: REMARKS & AUTO-REPLY ---
   const [remarks, setRemarks] = useState('');
   const [autoReply, setAutoReply] = useState('');
+  const [minRegisterDays, setMinRegisterDays] = useState('0');
 
-  // --- HANDLERS ---
-  const togglePayment = (method: string) => {
-    if (paymentMethods.includes(method)) {
-      setPaymentMethods(paymentMethods.filter(m => m !== method));
-    } else {
-      setPaymentMethods([...paymentMethods, method]);
-    }
-  };
+  const handleNext = () => setStep(step + 1);
+  const handleBack = () => setStep(step - 1);
 
   const handleFinish = () => {
-    // If floating, backend calculates price. We send 0 or user input as base.
-    const finalPrice = priceType === 'FIXED' ? Number(price) : 0;
+    // Basic Validation
+    if (!amount || !minLimit || !maxLimit) {
+      toast({ title: 'Please fill all required fields', status: 'error' });
+      return;
+    }
 
+    const price = priceType === 'FIXED' ? Number(fixedPrice) : 0; // Floating handled by backend usually, or calc here
+    
     const payload = {
-      type: adType,
+      type,
       priceType,
-      price: finalPrice,
-      floatingMargin: Number(margin),
+      price: price,
+      floatingMargin: priceType === 'FLOATING' ? Number(floatingMargin) : null,
       amount: Number(amount),
+      initialAmount: Number(amount),
       minLimit: Number(minLimit),
       maxLimit: Number(maxLimit),
-      paymentMethod: paymentMethods.join(','), // Convert array to string
-      paymentTimeLimit: Number(timeLimit),
+      paymentMethod,
+      paymentTimeLimit: Number(paymentTimeLimit),
+      verificationTimeLimit: Number(verifTime), // <--- NEW FIELD
       remarks,
-      autoReply
+      autoReply,
+      minRegisterDays: Number(minRegisterDays)
     };
+
     onPost(payload);
   };
 
   return (
     <Box>
       {/* PROGRESS BAR */}
-      <HStack mb={6} spacing={2}>
-        {[1, 2, 3].map(i => (
-           <Box key={i} h="4px" flex={1} bg={step >= i ? "#FCD535" : "gray.600"} borderRadius="full" />
-        ))}
+      <HStack mb={6} spacing={0} w="full">
+         <Box flex={1} h="4px" bg={step >= 1 ? "#FCD535" : "gray.700"} />
+         <Box flex={1} h="4px" bg={step >= 2 ? "#FCD535" : "gray.700"} />
+         <Box flex={1} h="4px" bg={step >= 3 ? "#FCD535" : "gray.700"} />
       </HStack>
 
-      {/* STEP 1: TYPE & PRICE */}
+      {/* STEP 1: ASSET & PRICE */}
       {step === 1 && (
-        <VStack spacing={5} align="stretch">
-          <HStack bg="gray.700" p={1} borderRadius="md">
-             <Button flex={1} size="sm" 
-               bg={adType === 'BUY' ? 'green.400' : 'transparent'} 
-               color={adType === 'BUY' ? 'white' : 'gray.400'}
-               _hover={{ bg: adType === 'BUY' ? 'green.500' : 'gray.600' }}
-               onClick={() => setAdType('BUY')}>I Want to Buy</Button>
-             <Button flex={1} size="sm" 
-               bg={adType === 'SELL' ? 'red.400' : 'transparent'} 
-               color={adType === 'SELL' ? 'white' : 'gray.400'}
-               _hover={{ bg: adType === 'SELL' ? 'red.500' : 'gray.600' }}
-               onClick={() => setAdType('SELL')}>I Want to Sell</Button>
-          </HStack>
-
-          <FormControl>
-            <FormLabel>Price Setting</FormLabel>
-            <RadioGroup onChange={setPriceType} value={priceType}>
-              <Stack direction='row' spacing={5}>
-                <Radio value='FIXED' colorScheme="yellow">Fixed</Radio>
-                <Radio value='FLOATING' colorScheme="yellow">Floating</Radio>
-              </Stack>
-            </RadioGroup>
-          </FormControl>
-
-          {priceType === 'FIXED' ? (
-            <FormControl>
-              <FormLabel>Price (INR)</FormLabel>
-              <Input value={price} onChange={e => setPrice(e.target.value)} bg="gray.900" border="none" />
-            </FormControl>
-          ) : (
-             <FormControl>
-              <FormLabel>Floating Margin (%)</FormLabel>
-              <Input value={margin} onChange={e => setMargin(e.target.value)} bg="gray.900" border="none" />
-              <Text fontSize="xs" color="gray.400" mt={1}>
-                Calculated Price: ₹ {(88 * (Number(margin)/100)).toFixed(2)} (Ref Price: 88)
-              </Text>
-            </FormControl>
-          )}
-
-          <Button mt={4} bg="#FCD535" color="black" onClick={() => setStep(2)}>Next</Button>
-        </VStack>
-      )}
-
-      {/* STEP 2: AMOUNT & PAYMENT */}
-      {step === 2 && (
         <VStack spacing={4} align="stretch">
-           <FormControl>
-              <FormLabel>Total Amount (USDT)</FormLabel>
-              <Input value={amount} onChange={e => setAmount(e.target.value)} bg="gray.900" border="none" />
-           </FormControl>
-
+           <Text fontWeight="bold" fontSize="lg">Step 1: Type & Price</Text>
+           
            <HStack>
-              <FormControl>
-                <FormLabel>Min Limit (₹)</FormLabel>
-                <Input value={minLimit} onChange={e => setMinLimit(e.target.value)} bg="gray.900" border="none" />
-              </FormControl>
-              <FormControl>
-                <FormLabel>Max Limit (₹)</FormLabel>
-                <Input value={maxLimit} onChange={e => setMaxLimit(e.target.value)} bg="gray.900" border="none" />
-              </FormControl>
+             <Button flex={1} bg={type === 'BUY' ? 'green.400' : 'gray.700'} onClick={() => setType('BUY')}>I Want to BUY</Button>
+             <Button flex={1} bg={type === 'SELL' ? 'red.400' : 'gray.700'} onClick={() => setType('SELL')}>I Want to SELL</Button>
            </HStack>
 
            <FormControl>
-             <FormLabel>Payment Time Limit</FormLabel>
-             <Select value={timeLimit} onChange={e => setTimeLimit(e.target.value)} bg="gray.900" border="none">
-                <option value="15" style={{color:'black'}}>15 Minutes</option>
-                <option value="30" style={{color:'black'}}>30 Minutes</option>
-                <option value="45" style={{color:'black'}}>45 Minutes</option>
+             <FormLabel>Asset / Fiat</FormLabel>
+             <HStack><Badge fontSize="md">{asset}</Badge><Text color="gray.500">with</Text><Badge fontSize="md">{fiat}</Badge></HStack>
+           </FormControl>
+
+           <FormControl>
+             <FormLabel>Price Type</FormLabel>
+             <Select value={priceType} onChange={e => setPriceType(e.target.value)} bg="gray.900" border="none">
+               <option value="FIXED" style={{color:'black'}}>Fixed Price</option>
+               <option value="FLOATING" style={{color:'black'}}>Floating (Market %)</option>
              </Select>
            </FormControl>
 
+           {priceType === 'FIXED' ? (
+             <FormControl>
+               <FormLabel>Fixed Price (INR)</FormLabel>
+               <Input type="number" value={fixedPrice} onChange={e => setFixedPrice(e.target.value)} bg="gray.900" border="none" placeholder="88.50" />
+             </FormControl>
+           ) : (
+             <FormControl>
+               <FormLabel>Margin (%)</FormLabel>
+               <Input type="number" value={floatingMargin} onChange={e => setFloatingMargin(e.target.value)} bg="gray.900" border="none" placeholder="102" />
+               <Text fontSize="xs" color="gray.500">100% = Market Price. 105% = 5% above market.</Text>
+             </FormControl>
+           )}
+
+           <Button colorScheme="yellow" onClick={handleNext}>Next</Button>
+        </VStack>
+      )}
+
+      {/* STEP 2: AMOUNT & LIMITS */}
+      {step === 2 && (
+        <VStack spacing={4} align="stretch">
+           <Text fontWeight="bold" fontSize="lg">Step 2: Total Amount & Payment</Text>
+
            <FormControl>
-             <FormLabel>Payment Methods</FormLabel>
-             <Stack spacing={2} direction="row" wrap="wrap">
-               {['UPI', 'IMPS', 'Bank Transfer', 'Digital Rupee'].map(m => (
-                 <Button 
-                   key={m} size="xs" 
-                   colorScheme={paymentMethods.includes(m) ? 'yellow' : 'gray'} 
-                   variant={paymentMethods.includes(m) ? 'solid' : 'outline'}
-                   onClick={() => togglePayment(m)}
-                 >
-                   {m}
-                 </Button>
-               ))}
-             </Stack>
+             <FormLabel>Total Amount (USDT)</FormLabel>
+             <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} bg="gray.900" border="none" placeholder="1000" />
            </FormControl>
 
-           <HStack mt={4}>
-             <Button flex={1} variant="ghost" onClick={() => setStep(1)}>Back</Button>
-             <Button flex={1} bg="#FCD535" color="black" onClick={() => setStep(3)}>Next</Button>
+           <HStack>
+             <FormControl>
+               <FormLabel>Min Limit (INR)</FormLabel>
+               <Input type="number" value={minLimit} onChange={e => setMinLimit(e.target.value)} bg="gray.900" border="none" placeholder="500" />
+             </FormControl>
+             <FormControl>
+               <FormLabel>Max Limit (INR)</FormLabel>
+               <Input type="number" value={maxLimit} onChange={e => setMaxLimit(e.target.value)} bg="gray.900" border="none" placeholder="50000" />
+             </FormControl>
+           </HStack>
+
+           <FormControl>
+              <FormLabel>Payment Method</FormLabel>
+              <Select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} bg="gray.900" border="none">
+                 <option value="UPI" style={{color:'black'}}>UPI</option>
+                 <option value="IMPS" style={{color:'black'}}>IMPS</option>
+                 <option value="BANK_TRANSFER" style={{color:'black'}}>Bank Transfer</option>
+              </Select>
+           </FormControl>
+
+           <FormControl>
+              <FormLabel>Payment Time Limit (Buyer)</FormLabel>
+              <Select value={paymentTimeLimit} onChange={e => setPaymentTimeLimit(e.target.value)} bg="gray.900" border="none">
+                 <option value="15" style={{color:'black'}}>15 Minutes</option>
+                 <option value="30" style={{color:'black'}}>30 Minutes</option>
+                 <option value="45" style={{color:'black'}}>45 Minutes</option>
+              </Select>
+           </FormControl>
+
+           <FormControl>
+              <FormLabel>Merchant Verification Time (You)</FormLabel>
+              <Select value={verifTime} onChange={e => setVerifTime(e.target.value)} bg="gray.900" border="none">
+                 <option value="5" style={{color:'black'}}>5 Minutes</option>
+                 <option value="10" style={{color:'black'}}>10 Minutes</option>
+                 <option value="15" style={{color:'black'}}>15 Minutes</option>
+              </Select>
+              <Text fontSize="xs" color="gray.500">If you don't verify an order within this time, it auto-cancels.</Text>
+           </FormControl>
+
+           <HStack pt={4}>
+             <Button variant="ghost" onClick={handleBack}>Back</Button>
+             <Button colorScheme="yellow" flex={1} onClick={handleNext}>Next</Button>
            </HStack>
         </VStack>
       )}
 
-      {/* STEP 3: REMARKS & AUTO-REPLY */}
+      {/* STEP 3: REMARKS */}
       {step === 3 && (
         <VStack spacing={4} align="stretch">
+           <Text fontWeight="bold" fontSize="lg">Step 3: Remarks & Auto-Reply</Text>
+
            <FormControl>
-              <FormLabel>Remarks (Terms)</FormLabel>
-              <Textarea 
-                placeholder="e.g. No third-party payments allowed." 
-                value={remarks} onChange={e => setRemarks(e.target.value)} 
-                bg="gray.900" border="none" 
-              />
+             <FormLabel>Remarks (Terms)</FormLabel>
+             <Textarea value={remarks} onChange={e => setRemarks(e.target.value)} bg="gray.900" border="none" placeholder="e.g. No third-party payments." />
            </FormControl>
 
            <FormControl>
-              <FormLabel>Auto-Reply (Sent to Chat)</FormLabel>
-              <Textarea 
-                placeholder="e.g. I am online! Please send payment." 
-                value={autoReply} onChange={e => setAutoReply(e.target.value)} 
-                bg="gray.900" border="none" 
-              />
+             <FormLabel>Auto-Reply (Chat)</FormLabel>
+             <Textarea value={autoReply} onChange={e => setAutoReply(e.target.value)} bg="gray.900" border="none" placeholder="e.g. I am online, please pay fast." />
            </FormControl>
 
-           <Checkbox colorScheme="yellow" defaultChecked>Client must be registered {'>'} 30 days ago</Checkbox>
+           <Divider my={2} />
 
-           <HStack mt={4}>
-             <Button flex={1} variant="ghost" onClick={() => setStep(2)}>Back</Button>
-             <Button flex={1} bg="#FCD535" color="black" isLoading={isLoading} onClick={handleFinish}>Post Ad</Button>
+           <FormControl>
+              <FormLabel>Counterparty Conditions</FormLabel>
+              <HStack>
+                 <Text fontSize="sm">Registered days &gt;</Text>
+                 <NumberInput value={minRegisterDays} onChange={val => setMinRegisterDays(val)} min={0} max={365} size="sm" w="80px">
+                    <NumberInputField bg="gray.900" border="none" />
+                 </NumberInput>
+              </HStack>
+           </FormControl>
+
+           <HStack pt={4}>
+             <Button variant="ghost" onClick={handleBack}>Back</Button>
+             <Button colorScheme="yellow" flex={1} onClick={handleFinish} isLoading={isLoading}>Post Ad</Button>
            </HStack>
         </VStack>
       )}
